@@ -37,7 +37,12 @@ public class Main {
 
         for (Thread thread : calcThreads) thread.join();
         System.out.println();
-        IntStream.range(0, CHARS.length()).forEach(ch -> System.out.printf("Максимальное кол-во букв '%s' в текстах = %s%n", CHARS.charAt(ch), maxCounts.get(CHARS.charAt(ch))));
+        IntStream.range(0, CHARS.length())
+                .forEach(ch -> System.out.printf("Максимальное кол-во букв '%s' в %s текстах длинной %s символов = %s%n",
+                        CHARS.charAt(ch),
+                        TEXTS_NUMBER,
+                        TEXT_LENGTH,
+                        maxCounts.get(CHARS.charAt(ch))));
     }
 
     // CALC THREADS IMPLEMENTATION
@@ -49,6 +54,7 @@ public class Main {
                     count = Math.max(count, queue.get(ch).take().chars().filter(c -> c == CHARS.charAt(ch)).count());
                 } catch (InterruptedException e) {
                     //System.out.println("getNewCalcThread : " + e.getMessage());
+                    break;
                 }
             }
             maxCounts.put(CHARS.charAt(ch), count);
