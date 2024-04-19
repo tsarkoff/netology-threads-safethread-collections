@@ -1,6 +1,5 @@
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.stream.IntStream;
 
 public class Main {
     public static final String CHARS = "abc";          // characters are used in text
@@ -8,56 +7,59 @@ public class Main {
     private static final int TEXT_LENGTH = 100_000;    // number of letters in one text
     private static final int QUEUE_SIZE = 100;         // size of blocking queue of texts
     private static Thread textGeneratorThread;         // Thread to generate texts
-    private static final List<ArrayBlockingQueue<String>> queue = new ArrayList<>(CHARS.length());
-    private static final Map<Character, Long> maxCounts = new HashMap<>();
+    private static final BlockingQueue<String> queueA = new ArrayBlockingQueue<>(QUEUE_SIZE);
+    private static final BlockingQueue<String> queueB = new ArrayBlockingQueue<>(QUEUE_SIZE);
+    private static final BlockingQueue<String> queueC = new ArrayBlockingQueue<>(QUEUE_SIZE);
 
     public static void main(String[] args) throws InterruptedException {
-        List<Thread> calcThreads = new ArrayList<>(CHARS.length());
-        for (int i = 0; i < CHARS.length(); i++)
-            queue.add(new ArrayBlockingQueue<>(QUEUE_SIZE));
-
         textGeneratorThread = new Thread(() -> {
             for (int i = 0; i < TEXTS_NUMBER; i++) {
+                String text = generateText();
                 try {
-                    for (int j = 0; j < CHARS.length(); j++)
-                        queue.get(j).put(generateText());
+                    queueA.put(text);
+                    queueB.put(text);
+                    queueC.put(text);
                 } catch (InterruptedException e) {
                     System.out.println("textGeneratorThread : " + e.getMessage());
                 }
                 progressBar((double) i / TEXTS_NUMBER);
             }
-            for (Thread thread : calcThreads) thread.interrupt();
+            System.out.println();
         });
         textGeneratorThread.start();
 
-        for (char ch = 0; ch < CHARS.length(); ch++) {
-            calcThreads.add(getNewCalcThread(ch));
-            calcThreads.getLast().start();
-        }
+        Thread threadA = getNewCalcThread(queueA, CHARS.charAt(0));
+        Thread threadB = getNewCalcThread(queueB, CHARS.charAt(1));
+        Thread threadC = getNewCalcThread(queueC, CHARS.charAt(2));
 
-        for (Thread thread : calcThreads) thread.join();
-        System.out.println();
-        IntStream.range(0, CHARS.length())
-                .forEach(ch -> System.out.printf("Максимальное кол-во букв '%s' в %s текстах длинной %s символов = %s%n",
-                        CHARS.charAt(ch),
-                        TEXTS_NUMBER,
-                        TEXT_LENGTH,
-                        maxCounts.get(CHARS.charAt(ch))));
+        threadA.start();
+        threadB.start();
+        threadC.start();
+
+        threadA.join();
+        threadB.join();
+        threadC.join();
+
+        textGeneratorThread.join();
+        queueA.put("¶");
+        queueB.put("¶");
+        queueC.put("¶");
     }
 
     // CALC THREADS IMPLEMENTATION
-    private static Thread getNewCalcThread(char ch) {
+    private static Thread getNewCalcThread(BlockingQueue<String> queue, char ch) {
         return new Thread(() -> {
             long count = 0;
             while (textGeneratorThread.isAlive()) {
                 try {
-                    count = Math.max(count, queue.get(ch).take().chars().filter(c -> c == CHARS.charAt(ch)).count());
+                    String text = queue.take();
+                    if (text.equals("¶")) break;
+                    count = Math.max(count, text.chars().filter(c -> c == ch).count());
                 } catch (InterruptedException e) {
-                    //System.out.println("getNewCalcThread : " + e.getMessage());
-                    break;
+                    System.out.println("getNewCalcThread : " + e.getMessage());
                 }
             }
-            maxCounts.put(CHARS.charAt(ch), count);
+            System.out.printf("MAX кол-во '%s' = %s%n", ch, count);
         });
     }
 
@@ -66,7 +68,7 @@ public class Main {
         Random random = new Random();
         StringBuilder text = new StringBuilder();
         for (int i = 0; i < TEXT_LENGTH; i++)
-            text.append(Main.CHARS.charAt(random.nextInt(Main.CHARS.length())));
+            text.append(Main.CHARS.charAt(random.nextInt(CHARS.length())));
         return text.toString();
     }
 
